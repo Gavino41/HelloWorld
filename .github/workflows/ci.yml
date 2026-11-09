@@ -37,13 +37,13 @@ jobs:
                   dotnet-version: '10.0.x'
 
             - name: Build
-              run: dotnet build HelloWorld.csproj -c Release --no-restore
+              run: dotnet build web/HelloWorld.csproj -c Release --no-restore
 
             - name: Test
               run: dotnet test -c Release --no-build --verbosity normal
 
             - name: Publish
-              run: dotnet publish HelloWorld.csproj -c Release --no-build -o ./publish
+              run: dotnet publish web/HelloWorld.csproj -c Release --no-build -o ./publish
 
             - name: Upload artifact
               uses: actions/upload-artifact@v5
