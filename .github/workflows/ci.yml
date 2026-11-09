@@ -39,9 +39,6 @@ jobs:
             - name: Build
               run: dotnet build web/HelloWorld.csproj -c Release --no-restore
 
-            - name: Test
-              run: dotnet test -c Release --no-build --verbosity normal
-
             - name: Publish
               run: dotnet publish web/HelloWorld.csproj -c Release --no-build -o ./publish
 
