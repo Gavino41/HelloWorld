@@ -2,29 +2,58 @@ name: Build and Package HelloWorld
 
 on:
     push:
-        branches: ['main']
+        branches: [main]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+
+# Least privilege: this job only needs to read the repo
+permissions:
+    contents: read
+
+# Cancel superseded runs on the same branch
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    DOTNET_NOLOGO: true
+    DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
     build:
         runs-on: windows-latest
+        timeout-minutes: 15
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v5
+              with:
+                  persist-credentials: false
 
-            - name: Setup .NET Core
+            - name: Set up .NET
               uses: actions/setup-dotnet@v5
               with:
                   dotnet-version: '10.0.x'
+                  cache: true # needs packages.lock.json (see below)
+                  cache-dependency-path: '**/packages.lock.json'
 
-            - name: Build and Publish
-              run: dotnet publish HelloWorld.csproj -c Release -o ./publish
+            - name: Restore
+              run: dotnet restore HelloWorld.csproj --locked-mode
 
-            - name: Zip the application
-              run: Compress-Archive -Path ./publish/* -DestinationPath HelloWorld.zip
+            - name: Build
+              run: dotnet build HelloWorld.csproj -c Release --no-restore
+
+            - name: Test
+              run: dotnet test -c Release --no-build --verbosity normal
+
+            - name: Publish
+              run: dotnet publish HelloWorld.csproj -c Release --no-build -o ./publish
 
             - name: Upload artifact
               uses: actions/upload-artifact@v5
               with:
                   name: HelloWorld-Package
-                  path: HelloWorld.zip
+                  path: ./publish
+                  if-no-files-found: error
+                  retention-days: 14
