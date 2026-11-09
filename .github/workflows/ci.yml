@@ -36,9 +36,6 @@ jobs:
               with:
                   dotnet-version: '10.0.x'
 
-            - name: Restore
-              run: dotnet restore HelloWorld.csproj --locked-mode
-
             - name: Build
               run: dotnet build HelloWorld.csproj -c Release --no-restore
 
