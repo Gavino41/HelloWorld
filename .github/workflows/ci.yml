@@ -1,0 +1,30 @@
+name: Build and Package HelloWorld
+
+on:
+    push:
+        branches: ['main']
+
+jobs:
+    build:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET Core
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: '8.0.x'
+
+            - name: Build and Publish
+              run: dotnet publish HelloWorld.csproj -c Release -o ./publish
+
+            - name: Zip the application
+              run: Compress-Archive -Path ./publish/* -DestinationPath HelloWorld.zip
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: HelloWorld-Package
+                  path: HelloWorld.zip
