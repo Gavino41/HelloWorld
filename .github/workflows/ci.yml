@@ -10,12 +10,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup .NET Core
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: '8.0.x'
+                  dotnet-version: '10.0.x'
 
             - name: Build and Publish
               run: dotnet publish HelloWorld.csproj -c Release -o ./publish
@@ -24,7 +24,7 @@ jobs:
               run: Compress-Archive -Path ./publish/* -DestinationPath HelloWorld.zip
 
             - name: Upload artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: HelloWorld-Package
                   path: HelloWorld.zip
