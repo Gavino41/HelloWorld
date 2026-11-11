@@ -100,3 +100,4 @@ The script pulls the image, replaces any existing container with the same name, 
 - The Docker script pulls `latest`. For a real deployment I'd use the commit SHA tag so it's clear what's running.
 - There are no automated tests in the pipeline yet, since the app is just Hello World.
 - The service stops with a non-zero exit code when the status isn't 200, so that Windows counts it as a failure and applies the 300-second restart.
+- The deployment scripts were written but not run end to end due to lack of windows machine.
