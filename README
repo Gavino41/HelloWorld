@@ -1,0 +1,102 @@
+# HelloWorld DevOps take-home
+
+A small .NET web app with a CI pipeline, an IIS deployment script, a Windows service that checks the site's status, a script to install that service, and a Docker image with its own deploy script.
+
+## What's in the repo
+
+| Step | What                                      | Where                              |
+| ---- | ----------------------------------------- | ---------------------------------- |
+| 1    | Web app, CI pipeline, zip package         | `web/`, `.github/workflows/`       |
+| 2    | IIS deployment script                     | `scripts/Deploy-IIS.ps1`           |
+| 3    | Windows service that logs the site status | `StatusMonitor/`                   |
+| 4    | Windows service deployment script         | `scripts/Deploy-Service.ps1`       |
+| 5    | Docker image built by the pipeline        | `Dockerfile`, `.github/workflows/` |
+| 6    | Docker deployment script                  | `scripts/Deploy-Docker.ps1`        |
+
+Both .NET projects open in Visual Studio or VS Code.
+
+## Requirements
+
+- .NET 10 SDK
+- For steps 2 and 4: a Windows machine with IIS, the .NET 10 ASP.NET Core Hosting Bundle, and an elevated PowerShell
+- For step 6: a machine with Docker running Linux containers
+
+## Step 1: Build
+
+The workflow in `.github/workflows/` runs on every push and pull request to `main` (and can be started by hand). The `build` job restores, builds and publishes the app, then uploads the output as the `HelloWorld-Package` artifact, which GitHub provides as a zip.
+
+A few things I did for the pipeline: the token only has read access, newer runs cancel older ones on the same branch, jobs have a timeout, and restore, build and publish are separate steps so a failure is easy to locate.
+
+To run the app locally:
+
+```bash
+dotnet run --project web/HelloWorld.csproj
+```
+
+## Step 2: IIS deployment
+
+Run from an elevated Windows PowerShell:
+
+```powershell
+$cred = Get-Credential
+.\scripts\Deploy-IIS.ps1 -ServiceCredential $cred -SourcePath C:\path\to\published\app
+```
+
+The script creates a local group and adds the given user to it, an application pool that runs as that user, a site with http and https bindings, a custom log folder, and an application under the site that uses the pool. The https binding uses a self-signed certificate. It checks for existing items first, so it can be run more than once.
+
+The app is then reachable at `http://localhost/HelloWorldApp/`.
+
+## Step 3: Log status service
+
+`StatusMonitor` is a .NET worker service. Every 60 seconds it requests the site and appends the time, HTTP code and message to `status.log`, in the same folder as the executable. If the response is not 200, or the request fails or times out, it logs that and stops.
+
+The URL, interval and timeout are in `appsettings.json`. It runs from the IDE or `dotnet run` as a console app, and as a real Windows service once installed.
+
+```bash
+cd StatusMonitor
+dotnet run
+```
+
+## Step 4: Install the service
+
+Publish, copy the output to the Windows machine, then run the script:
+
+```bash
+dotnet publish StatusMonitor -c Release -r win-x64 --self-contained false -o publish
+```
+
+```powershell
+$cred = Get-Credential
+.\scripts\Deploy-Service.ps1 -ExePath C:\Services\StatusMonitor\StatusMonitor.exe -ServiceCredential $cred
+```
+
+The script creates the service pointing at the exe, runs it as the given user, sets it to start automatically, and sets recovery to restart after 300 seconds. It also gives the account the "Log on as a service" right and write access to the install folder, because the service can't start or write its log without them.
+
+## Step 5: Docker image
+
+The `Dockerfile` builds the app in the SDK image and copies only the published output into the smaller ASP.NET image, which runs as a non-root user on port 8080. The `docker` job in the pipeline builds it on every run, and pushes it to GitHub Container Registry as `ghcr.io/gavino41/helloworld` (tagged `latest` and with the commit SHA) only from `main`.
+
+To try it locally:
+
+```bash
+docker build -t helloworld .
+docker run --rm -p 8081:8080 helloworld
+curl -i http://localhost:8081/
+```
+
+## Step 6: Docker deployment
+
+```powershell
+.\scripts\Deploy-Docker.ps1
+.\scripts\Deploy-Docker.ps1 -HostPort 8082
+```
+
+The script pulls the image, replaces any existing container with the same name, starts it with `--restart unless-stopped`, and waits until it answers with HTTP 200. If it doesn't, it prints the container logs and fails.
+
+## Notes and limitations
+
+- The https certificate is self-signed, which is fine for a demo. A real certificate would be used in production.
+- A password-based local account runs the app pool and the service. In production I'd use a managed service account.
+- The Docker script pulls `latest`. For a real deployment I'd use the commit SHA tag so it's clear what's running.
+- There are no automated tests in the pipeline yet, since the app is just Hello World.
+- The service stops with a non-zero exit code when the status isn't 200, so that Windows counts it as a failure and applies the 300-second restart.
